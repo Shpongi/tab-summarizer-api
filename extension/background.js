@@ -1,32 +1,41 @@
-// שומר כתובת API בזיכרון ברירת מחדל (אפשר לשנות מה-popup)
 const DEFAULT_API_URL = "https://tab-summarizer-api.vercel.app/api/tabs";
 
-// הודעות מה-popup
-chrome.runtime.onMessage.addListener(async (msg, _sender, sendResponse) => {
-  if (msg.type === "SEND_TABS") {
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  // נחזיר true כדי להשאיר את ה-port פתוח לתשובה אסינכרונית
+  (async () => {
     try {
-      const apiUrl = (await chrome.storage.sync.get(["apiUrl"])).apiUrl || DEFAULT_API_URL;
-      const apiKey = (await chrome.storage.sync.get(["apiKey"])).apiKey || "";
+      if (msg.type !== "SEND_TABS") {
+        sendResponse({ ok: false, error: "unknown message" });
+        return;
+      }
+
+      const { apiUrl: storedUrl, apiKey } = await chrome.storage.sync.get(["apiUrl", "apiKey"]);
+      const apiUrl = (storedUrl || DEFAULT_API_URL).trim();
 
       const tabs = msg.scope === "current"
         ? await chrome.tabs.query({ active: true, currentWindow: true })
-        : await chrome.tabs.query({}); // כל הטאבים
+        : await chrome.tabs.query({});
 
-      const data = tabs.map(t => ({ title: t.title, url: t.url }));
+      const payload = {
+        api_key: (apiKey || "").trim(),
+        tabs: tabs.map(t => ({ title: t.title, url: t.url }))
+      };
 
-      const resp = await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_key: apiKey, tabs: data })
+        body: JSON.stringify(payload)
       });
 
-      const json = await resp.json();
-      sendResponse({ ok: true, result: json });
+      const json = await res.json().catch(() => ({}));
+      sendResponse({ ok: res.ok, status: res.status, result: json });
+
     } catch (err) {
-      console.error(err);
+      console.error("SEND_TABS error:", err);
+      // נוודא שתמיד מחזירים תשובה
       sendResponse({ ok: false, error: String(err) });
     }
-    // Important for async sendResponse
-    return true;
-  }
+  })();
+
+  return true; // חשוב!
 });
