@@ -1,7 +1,14 @@
 const DEFAULT_API_URL = "https://tab-summarizer-api.vercel.app/api/tabs";
 
+// עטיפות Promise ל־chrome APIs (MV3)
+function storageGet(keys) {
+  return new Promise((resolve) => chrome.storage.sync.get(keys, resolve));
+}
+function tabsQuery(query) {
+  return new Promise((resolve) => chrome.tabs.query(query, resolve));
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // נחזיר true כדי להשאיר את ה-port פתוח לתשובה אסינכרונית
   (async () => {
     try {
       if (msg.type !== "SEND_TABS") {
@@ -9,33 +16,33 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         return;
       }
 
-      const { apiUrl: storedUrl, apiKey } = await chrome.storage.sync.get(["apiUrl", "apiKey"]);
-      const apiUrl = (storedUrl || DEFAULT_API_URL).trim();
+      const { apiUrl, apiKey } = await storageGet(["apiUrl", "apiKey"]);
+      const targetUrl = (apiUrl || DEFAULT_API_URL).trim();
 
       const tabs = msg.scope === "current"
-        ? await chrome.tabs.query({ active: true, currentWindow: true })
-        : await chrome.tabs.query({});
+        ? await tabsQuery({ active: true, currentWindow: true })
+        : await tabsQuery({}); // כל הטאבים
 
       const payload = {
         api_key: (apiKey || "").trim(),
         tabs: tabs.map(t => ({ title: t.title, url: t.url }))
       };
 
-      const res = await fetch(apiUrl, {
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
-      const json = await res.json().catch(() => ({}));
-      sendResponse({ ok: res.ok, status: res.status, result: json });
+      let json = null;
+      try { json = await res.json(); } catch { json = {}; }
 
+      sendResponse({ ok: res.ok, status: res.status, result: json });
     } catch (err) {
       console.error("SEND_TABS error:", err);
-      // נוודא שתמיד מחזירים תשובה
       sendResponse({ ok: false, error: String(err) });
     }
   })();
 
-  return true; // חשוב!
+  return true; // משאיר את ה-port פתוח עד sendResponse
 });
