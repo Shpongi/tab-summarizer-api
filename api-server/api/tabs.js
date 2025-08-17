@@ -68,7 +68,7 @@ module.exports = async (req, res) => {
       return res.status(200).json({
         ok: true,
         received: tabs.length,
-        sample: tabs.slice(0, 3)
+        items: tabs
       });
     }
 
