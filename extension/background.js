@@ -1,21 +1,18 @@
-chrome.action.onClicked.addListener(async (tab) => {
-  chrome.tabs.query({}, (tabs) => {
-    const tabData = tabs.map(t => ({
-      title: t.title,
-      url: t.url
-    }));
+async function sendAllTabs() {
+  const tabs = await chrome.tabs.query({});
+  const data = tabs.map(t => ({ title: t.title, url: t.url }));
 
-    // שליחה ל־API שלך
-    fetch("https://YOUR_VERCEL_API_URL/api/tabs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: "USER_SECRET_KEY",
-        tabs: tabData
-      })
+  const resp = await fetch('https://tab-summarizer-api.vercel.app/api/tabs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: 'DEV_KEY',      // או למשוך מ-storage
+      tabs: data
     })
-    .then(res => res.json())
-    .then(data => console.log("API Response:", data))
-    .catch(err => console.error("Error:", err));
   });
-});
+  const json = await resp.json();
+  console.log('API response:', json);
+}
+
+// למשל בלחיצה על האייקון:
+chrome.action.onClicked.addListener(sendAllTabs);
