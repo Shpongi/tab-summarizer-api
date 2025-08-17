@@ -15,3 +15,6 @@ function send(scope) {
 
 $("sendCurrent").addEventListener("click", () => send("current"));
 $("sendAll").addEventListener("click", () => send("all"));
+
+if (resp.ok) show(resp.result);
+else show(`Request failed (status ${resp.status}): ${JSON.stringify(resp.result) || resp.raw}`);
