@@ -1,7 +1,13 @@
 export const config = { runtime: "edge" };
 
+export async function POST(req: Request) {
+  console.log("OPENAI_KEY_LEN", process.env.OPENAI_API_KEY?.length);
+  }
+
 type InLink = { url: string; title?: string | null };
 type OutLink = { url: string; title?: string | null; description: string };
+
+
 
 const MODEL = "gpt-4o-mini"; // אפשר לשנות בהתאם לצורך
 
