@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Tab Summarizer",
-  "version": "1.0.0",
+  "name": "Tab Summarizer to Telegram",
+  "version": "0.2.0",
   "permissions": ["tabs", "storage"],
-  "host_permissions": ["https://tab-summarizer-api.vercel.app/*"],
-  "action": { "default_popup": "popup.html" },
-  "background": { "service_worker": "background.js" }
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" }
 }
