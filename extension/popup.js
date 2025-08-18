@@ -13,15 +13,83 @@ const show = (m) => {
   setTextWithDirection(el, text);
 };
 
-function send(scope) {
-  const apiBase = $("apiUrl").value.trim() || "http://localhost:3000";
-  chrome.runtime.sendMessage({ type: "SEND_TABS", scope, apiBase }, (resp) => {
-    if (chrome.runtime.lastError) { show("Background error: " + chrome.runtime.lastError.message); return; }
-    if (!resp) { show("No response from background"); return; }
-    if (resp.ok) show(`נשלחו ${resp.sent ?? 0} קישורים לטלגרם ✅`);
-    else show(`נכשל (סטטוס ${resp.status ?? "?"}): ${resp.error || resp.raw || ""}`);
+// UI helpers
+function setBusy(isBusy) {
+  $("sendCurrent").disabled = isBusy;
+  $("sendAll").disabled = isBusy;
+  if (isBusy) show("שולח… רגע...");
+}
+
+// storage
+async function loadSettings() {
+  return new Promise((resolve) => {
+    chrome.storage?.sync?.get({ apiBase: "" }, (data) => resolve(data || {}));
   });
 }
+async function saveSettings(apiBase) {
+  return new Promise((resolve) => {
+    chrome.storage?.sync?.set({ apiBase }, () => resolve(true));
+  });
+}
+
+// send with timeout wrapper
+function sendWithTimeout(message, timeoutMs = 30000) { // 30s
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve({ ok: false, error: "Timeout: background did not respond in time" });
+    }, timeoutMs);
+
+    chrome.runtime.sendMessage(message, (resp) => {
+      if (done) return;
+      clearTimeout(timer);
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: "Background error: " + chrome.runtime.lastError.message });
+      } else if (!resp) {
+        resolve({ ok: false, error: "No response from background" });
+      } else {
+        resolve(resp);
+      }
+    });
+  });
+}
+
+async function send(scope) {
+  const inputVal = $("apiUrl").value.trim();
+  const apiBase = inputVal || "https://tab-summarizer-api.vercel.app"; // ברירת מחדל לפרודקשן
+  if (!/^https?:\/\//i.test(apiBase)) {
+    show("API Base לא תקין (חייב להתחיל ב-http/https)");
+    return;
+  }
+
+  // שמור את ה-API לשימוש הבא
+  saveSettings(apiBase).catch(() => {});
+
+  setBusy(true);
+  try {
+    const resp = await sendWithTimeout({ type: "SEND_TABS", scope, apiBase });
+    if (resp.ok) {
+      const cnt = Number(resp.sent ?? 0);
+      show(`נשלחו ${cnt} קישורים לטלגרם ✅`);
+    } else {
+      const status = resp.status ?? "?";
+      const err = resp.error || resp.raw || "שגיאה לא ידועה";
+      show(`נכשל (סטטוס ${status}): ${err}`);
+    }
+  } catch (e) {
+    show("שגיאה: " + (e?.message || String(e)));
+  } finally {
+    setBusy(false);
+  }
+}
+
+// init
+(async function init() {
+  const { apiBase } = await loadSettings();
+  if (apiBase) $("apiUrl").value = apiBase;
+})();
 
 $("sendCurrent").addEventListener("click", () => send("current"));
 $("sendAll").addEventListener("click", () => send("all"));
